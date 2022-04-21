@@ -41,6 +41,9 @@ func OpenPGDatabase(connString string) (pgDB *PGDatabase, err error) {
 		}
 	}()
 
+	// Create Extentions
+	tx.MustExec(`CREATE EXTENSION IF NOT EXISTS pgroonga`)
+
 	// Create tables
 	tx.MustExec(`CREATE TABLE IF NOT EXISTS account(
 		id       SERIAL,
@@ -79,6 +82,9 @@ func OpenPGDatabase(connString string) (pgDB *PGDatabase, err error) {
 	// Create indices
 	tx.MustExec(`CREATE INDEX IF NOT EXISTS bookmark_tag_bookmark_id_FK ON bookmark_tag (bookmark_id)`)
 	tx.MustExec(`CREATE INDEX IF NOT EXISTS bookmark_tag_tag_id_FK ON bookmark_tag (tag_id)`)
+	tx.MustExec(`CREATE INDEX IF NOT EXISTS pgroonga_title_index ON bookmark USING pgroonga (title)`)
+	tx.MustExec(`CREATE INDEX IF NOT EXISTS pgroonga_excerpt_index ON bookmark USING pgroonga (excerpt)`)
+	tx.MustExec(`CREATE INDEX IF NOT EXISTS pgroonga_content_index ON bookmark USING pgroonga (content)`)
 
 	err = tx.Commit()
 	checkError(err)
@@ -249,7 +255,9 @@ func (db *PGDatabase) GetBookmarks(opts GetBookmarksOptions) ([]model.Bookmark, 
 	if opts.Keyword != "" {
 		query += ` AND (
 			url LIKE :lkw OR
-			MATCH(title, excerpt, content) AGAINST (:kw IN BOOLEAN MODE)
+			title &@~ :kw OR
+			excerpt &@~ :kw OR
+			content &@~ :kw
 		)`
 
 		arg["lkw"] = "%" + opts.Keyword + "%"
@@ -382,7 +390,9 @@ func (db *PGDatabase) GetBookmarksCount(opts GetBookmarksOptions) (int, error) {
 	if opts.Keyword != "" {
 		query += ` AND (
 			url LIKE :lurl OR
-			MATCH(title, excerpt, content) AGAINST (:kw IN BOOLEAN MODE)
+			title &@~ :kw OR
+			excerpt &@~ :kw OR
+			content &@~ :kw
 		)`
 
 		arg["lurl"] = "%" + opts.Keyword + "%"
